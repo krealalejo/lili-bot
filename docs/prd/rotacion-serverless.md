@@ -98,11 +98,11 @@ bot remains on `feat/rotacion-bot`.
 
 | # | Check | How | Result |
 |---|-------|-----|--------|
-| 1 | Draw rules still hold | `pnpm test` | |
-| 2 | Signatures verified correctly | Ed25519 unit tests: good accepted, tampered rejected | |
-| 3 | Full flow works | Integration test: PING, `/rotacion`, 7 joins, close, second round rotates | |
-| 4 | Types and scripts valid | `pnpm typecheck`, `bash -n deploy/*.sh` | |
-| 5 | Image builds and boots | `docker build`, `GET /healthz` | |
+| 1 | Draw rules still hold | `pnpm test` | PASS — 55 tests (2026-09-15) |
+| 2 | Signatures verified correctly | Ed25519 unit tests: good accepted, tampered rejected | PASS (2026-09-15) |
+| 3 | Full flow works | Integration test: PING, `/rotacion`, 7 joins, close, second round rotates | PASS (2026-09-15) |
+| 4 | Types and scripts valid | `pnpm typecheck`, `bash -n deploy/*.sh` | PASS (2026-09-15) |
+| 5 | Image builds and boots | `docker build`, `GET /healthz` | PARTIAL — server boots in ~85 ms and routes correctly; `docker build` NOT run (daemon down) |
 | 6 | Cold start under 3 s | Time the first PING after scaling to zero | |
 | 7 | Discord accepts the endpoint | Developer Portal turns green | |
 | 8 | Bill is zero | Billing report + $1 budget alert | |
@@ -116,3 +116,5 @@ bot remains on `feat/rotacion-bot`.
 - `2026-09-15` — App Engine Standard rejected: no background process support.
 - `2026-09-15` — Cloud Run free tier is US-only; `us-east1` chosen as closest to Spain.
 - `2026-09-15` — `discord.js` removed entirely; zero runtime dependencies to protect cold start.
+- `2026-09-15` — Cold start measured locally at ~85 ms to first response, against a 3 s budget.
+- `2026-09-15` — Docker build unverified: Docker Desktop was not running on the dev machine.

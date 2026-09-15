@@ -109,7 +109,7 @@ survived, since it lives in Firestore rather than in the process.
 ```
 
 The bot's Discord-facing text is in Spanish, matching the server it was built for. It lives in
-`src/discord/render.ts` if you want to change it.
+`src/features/rotation/render.ts` if you want to change it.
 
 ---
 

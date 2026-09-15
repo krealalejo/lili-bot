@@ -45,13 +45,13 @@ rather than a reaction: reactions are gateway-only events.
 
 **Zero runtime dependencies.** Node 24's WebCrypto covers Ed25519, `fetch` covers the rest, and
 type stripping means no build step. Boot is **~85 ms**, against Discord's 3-second response
-deadline. The reasoning is in [Architecture](docs/architecture.md).
+deadline. The reasoning is in [Architecture](docs/architecture.md), along with [how to add a feature](docs/architecture.md#adding-a-feature).
 
 ## Commands
 
 | Command | What it does |
 |---|---|
-| `pnpm test` | The full suite, 55 tests |
+| `pnpm test` | The full suite, 70 tests |
 | `pnpm typecheck` | `tsc --noEmit` |
 | `pnpm dev` | Runs the server with `--watch`, reading `.env` |
 | `pnpm commands` | Registers the `/rotacion` slash command with Discord |
@@ -86,7 +86,7 @@ Where each key comes from is in [Discord setup](docs/discord-setup.md#step-2--th
 | [Architecture](docs/architecture.md) | How it works and why: the interactions model, data model, security, project layout |
 | [Development](docs/development.md) | Running the tests, working locally, where to change what |
 | [Troubleshooting](docs/troubleshooting.md) | Symptoms, causes, and how to inspect a running deployment |
-| [PRDs](docs/prd/) | Decision records for both versions of the bot |
+| [PRDs](docs/prd/) | Decision records: both versions of the bot, and the extensible core |
 
 ## Quick start
 

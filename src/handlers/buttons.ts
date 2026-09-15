@@ -41,12 +41,19 @@ export async function handleButton(
     );
   }
 
+  // Anything that is not one of ours must not fall through to a membership change:
+  // an unrecognised id used to be treated as "leave".
+  if (customId !== CustomId.Join && customId !== CustomId.Leave) {
+    return ephemeral('No reconozco ese botón.');
+  }
+
   const updated = await deps.store.update(channelId, (doc) => {
     if (!isOpen(doc.pool, deps.now()) || doc.pool === null) {
       return null;
     }
 
-    const pool = customId === CustomId.Join ? joinPool(doc.pool, actor.id) : leavePool(doc.pool, actor.id);
+    const pool =
+      customId === CustomId.Join ? joinPool(doc.pool, actor.id) : leavePool(doc.pool, actor.id);
 
     return { ...doc, pool };
   });

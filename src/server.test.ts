@@ -228,6 +228,19 @@ describe('joining', () => {
 
     expect(JSON.stringify((await h.click(CustomId.Join, 'a')).body)).toContain('ya está cerrada');
   });
+
+  it('ignores an unrecognised button instead of quietly removing the clicker', async () => {
+    const h = harness();
+    await h.openRotation();
+    await h.click(CustomId.Join, 'a');
+    await h.click(CustomId.Join, 'b');
+
+    // Any future feature's button would have landed in the "leave" branch.
+    const response = await h.click('some:other:button', 'a');
+
+    expect(JSON.stringify(response.body)).toContain('No reconozco ese botón');
+    expect((await h.deps.store.read(CHANNEL)).pool?.participants).toEqual(['a', 'b']);
+  });
 });
 
 describe('closing and rotating', () => {

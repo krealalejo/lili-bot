@@ -1,0 +1,25 @@
+{
+  "name": "lilibot",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Discord bot that runs player rotations for a 5-slot game group",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "node --env-file=.env --watch src/index.ts",
+    "start": "node --env-file=.env src/index.ts",
+    "commands": "node --env-file=.env src/deploy-commands.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "discord.js": "^14.27.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.5.1",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.0"
+  }
+}

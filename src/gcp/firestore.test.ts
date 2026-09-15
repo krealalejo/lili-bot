@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { decodeFields, decodeValue, encodeFields, encodeValue } from './firestore.ts';
-import type { RotationDoc } from '../types.ts';
+import type { RotationDoc } from '../features/rotation/state.ts';
 
 const roundTrip = (data: Record<string, unknown>): Record<string, unknown> =>
   decodeFields(encodeFields(data) as Record<string, Record<string, unknown>>);

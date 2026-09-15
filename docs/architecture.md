@@ -68,7 +68,7 @@ What replaced them:
 
 | Would have been | Is instead |
 |---|---|
-| `discord.js` for embeds and buttons | Plain JSON in `src/discord/render.ts` |
+| `discord.js` for embeds and buttons | Plain JSON in `src/features/rotation/render.ts` |
 | `discord.js` REST client | `fetch` in `src/discord/rest.ts` |
 | `discord-interactions` for signatures | Node 24 WebCrypto Ed25519 in `src/discord/verify.ts` |
 | `@google-cloud/firestore` | Firestore REST in `src/gcp/firestore.ts` |
@@ -123,7 +123,7 @@ expiry — so a sign-up can run for hours.
 
 ### Two ways to close, one commit
 
-`commitClose()` in `src/handlers/close.ts` resolves the round and writes it, without touching
+`commitClose()` in `src/features/rotation/close.ts` resolves the round and writes it, without touching
 Discord. The caller renders the outcome, because the two paths differ:
 
 - **The button** can piggyback on the interaction response (`type 7` edits the message it is
@@ -164,7 +164,7 @@ An **empty sign-up does not clear the memory**: nobody played, so nobody paid th
 
 Two people clicking at the same instant is the realistic collision. Writes use an optimistic
 `currentDocument.updateTime` precondition plus a bounded retry from a fresh read
-(`src/state/rotations.ts`) — simpler than Firestore transactions and sufficient for a document
+(`src/core/store.ts`) — simpler than Firestore transactions and sufficient for a document
 only one channel ever touches.
 
 ---
@@ -192,30 +192,66 @@ authenticate. So IAM cannot be the gate, and everything rests on signatures.
 
 ```
 src/
-  domain/rotation.ts       the draw rule: randomness and immunity. No I/O
-  domain/pool.ts           joining and leaving a sign-up. No I/O
-  discord/verify.ts        Ed25519 verification of every request
-  discord/rest.ts          calls to the Discord API
-  discord/render.ts        embeds and buttons as JSON
-  discord/responses.ts     interaction response helpers
-  discord/constants.ts     Discord's numeric protocol codes
-  gcp/auth.ts              access token from the metadata server
-  gcp/firestore.ts         Firestore REST client and value codec
-  gcp/tasks.ts             scheduling the close on Cloud Tasks
-  state/rotations.ts       the rotation document, with optimistic retry
-  state/memory.ts          in-memory Firestore, for the tests
-  handlers/                the command, the buttons and the shared close
-  server.ts                routing and dispatch
-  index.ts                 HTTP server
-  deploy-commands.ts       slash command registration
+  core/                    infrastructure that knows nothing about any feature
+    registry.ts            routes commands and components to whoever declared them
+    store.ts               createDocumentStore<T>: optimistic concurrency, any shape
+    http.ts                request and response shapes
+    memory.ts              in-memory Firestore for the tests
+  discord/                 the protocol, and nothing about this bot
+    types.ts  constants.ts  verify.ts  rest.ts  responses.ts  interaction.ts
+  gcp/                     auth.ts  firestore.ts  tasks.ts
+  features/
+    index.ts               the list of features the bot has
+    rotation/
+      index.ts             what this feature answers to
+      command.ts           /rotacion: its definition and its handler, together
+      buttons.ts           the component handlers
+      ids.ts               the custom_id namespace this feature owns
+      close.ts             committing a round, and the Cloud Tasks callback
+      render.ts            embeds and buttons as JSON
+      state.ts             the document shape and its store
+      rotation.ts          the draw rule: randomness and immunity. No I/O
+      pool.ts              joining and leaving a sign-up. No I/O
+      deps.ts              what this feature needs from the outside world
+  deps.ts                  what the application provides
+  server.ts                signature check, then dispatch through the registry
+  index.ts                 HTTP server and composition root
+  deploy-commands.ts       registers whatever the features declare
 ```
 
-The layering is the point: `src/domain/` knows nothing about Discord or Google, `src/discord/`
-and `src/gcp/` know nothing about each other, and `src/handlers/` receives its collaborators as
-arguments rather than importing them.
+The dependency direction is one-way: `core/` and `discord/` and `gcp/` know nothing about
+`features/`, and features know nothing about each other. Inside a feature, `rotation.ts` and
+`pool.ts` are pure — no Discord, no Google, no I/O at all.
 
 That is why the rewrite from gateway to serverless changed every file **except**
-`src/domain/rotation.ts` and its tests. The rules that actually matter never moved.
+`rotation.ts` and its tests. The rules that actually matter never moved.
+
+## Adding a feature
+
+Everything a feature needs to declare lives in its own folder:
+
+```ts
+// src/features/stats/index.ts
+export const statsFeature: Feature<StatsDeps> = {
+  name: 'stats',
+  commands: [statsCommand],                              // { definition, handle }
+  components: [{ prefix: 'stats:', handle: handleButton }],
+};
+```
+
+then one line in `src/features/index.ts`. `server.ts`, `index.ts` and `deploy-commands.ts`
+are untouched: the registry routes by command name and by `custom_id` prefix, and
+`deploy-commands.ts` registers whatever `definitions()` returns.
+
+Two mistakes fail at boot rather than in production: two features claiming the same command
+name, and two features claiming overlapping `custom_id` prefixes. `createRegistry` throws on
+both.
+
+State is the same story — `createDocumentStore<T>(firestore, 'stats', normalise)` gives a new
+feature its own collection with the same optimistic-concurrency handling, without copying it.
+
+The one thing still tied to a single feature is the `/close` route in `server.ts`. When a
+second feature needs delayed work, that becomes a task registry the same way commands did.
 
 ---
 

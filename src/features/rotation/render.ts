@@ -1,7 +1,7 @@
-import { GROUP_SIZE } from '../domain/rotation.ts';
-import { ButtonStyle, ComponentType, CustomId } from './constants.ts';
-import type { MessagePayload } from './rest.ts';
-import type { RoundResult } from '../types.ts';
+import { ButtonStyle, ComponentType } from '../../discord/constants.ts';
+import type { MessagePayload } from '../../discord/rest.ts';
+import { CustomId } from './ids.ts';
+import { GROUP_SIZE, type RoundResult } from './rotation.ts';
 
 const OPEN_COLOR = 0x5865f2;
 const RESULT_COLOR = 0x57f287;

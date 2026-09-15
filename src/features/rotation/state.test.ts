@@ -1,18 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { createMemoryFirestore, createMemoryStore } from './memory.ts';
-import { createStore, emptyDoc } from './rotations.ts';
-import type { Firestore } from '../gcp/firestore.ts';
-import type { RotationDoc } from '../types.ts';
+import { createMemoryFirestore } from '../../core/memory.ts';
+import { createRotationStore, emptyDoc, type RotationDoc } from './state.ts';
+import type { Firestore } from '../../gcp/firestore.ts';
 
 describe('rotation store', () => {
   it('reads an empty document for a channel that has never played', async () => {
-    const store = createMemoryStore();
+    const store = createRotationStore(createMemoryFirestore());
 
     expect(await store.read('new-channel')).toEqual(emptyDoc());
   });
 
   it('persists what it writes', async () => {
-    const store = createMemoryStore();
+    const store = createRotationStore(createMemoryFirestore());
 
     await store.update('c1', (doc) => ({ ...doc, immune: ['a', 'b'] }));
 
@@ -20,7 +19,7 @@ describe('rotation store', () => {
   });
 
   it('writes nothing when the mutation declines', async () => {
-    const store = createMemoryStore();
+    const store = createRotationStore(createMemoryFirestore());
     await store.update('c1', (doc) => ({ ...doc, immune: ['a'] }));
 
     expect(await store.update('c1', () => null)).toBeNull();
@@ -46,7 +45,7 @@ describe('rotation store', () => {
       },
     };
 
-    const store = createStore(contended);
+    const store = createRotationStore(contended);
     const seen: RotationDoc[] = [];
 
     const result = await store.update('c1', (doc) => {
@@ -70,6 +69,6 @@ describe('rotation store', () => {
       },
     };
 
-    await expect(createStore(alwaysStale).update('c1', (doc) => doc)).rejects.toThrow(/Gave up/);
+    await expect(createRotationStore(alwaysStale).update('c1', (doc) => doc)).rejects.toThrow(/Gave up/);
   });
 });

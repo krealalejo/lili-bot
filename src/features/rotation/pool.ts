@@ -1,4 +1,4 @@
-import type { Pool } from '../types.ts';
+import type { Pool } from './state.ts';
 
 /**
  * Pure membership rules for an open convocatoria. No I/O, no Discord, no Firestore —

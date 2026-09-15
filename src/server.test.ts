@@ -1,8 +1,13 @@
 import { webcrypto } from 'node:crypto';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { CallbackType, CustomId, InteractionType } from './discord/constants.ts';
-import { createApp, type AppDeps, type HttpRequest } from './server.ts';
-import { createMemoryStore } from './state/memory.ts';
+import { CallbackType, InteractionType } from './discord/constants.ts';
+import { createMemoryFirestore } from './core/memory.ts';
+import { createRegistry, type Feature } from './core/registry.ts';
+import type { AppDeps } from './deps.ts';
+import { features } from './features/index.ts';
+import { CustomId } from './features/rotation/ids.ts';
+import { createRotationStore } from './features/rotation/index.ts';
+import { createApp, type HttpRequest, type ServerDeps } from './server.ts';
 import type { MessagePayload } from './discord/rest.ts';
 import type { CloseTaskPayload } from './gcp/tasks.ts';
 
@@ -32,7 +37,7 @@ beforeAll(async () => {
 
 type Sent = { channelId: string; payload: MessagePayload };
 
-function harness() {
+function harness(extraFeatures: Feature<AppDeps>[] = []) {
   const created: Sent[] = [];
   const edited: (Sent & { messageId: string })[] = [];
   const scheduled: { payload: CloseTaskPayload; at: number }[] = [];
@@ -40,10 +45,10 @@ function harness() {
   let secretCounter = 0;
   let messageCounter = 0;
 
-  const deps: AppDeps = {
+  const deps: ServerDeps = {
     publicKeyHex,
-    commandName: 'rotacion',
-    store: createMemoryStore(),
+    registry: createRegistry([...features, ...extraFeatures]),
+    store: createRotationStore(createMemoryFirestore()),
     now: () => clock,
     randomSecret: () => `secret-${(secretCounter += 1)}`,
     discord: {
@@ -228,6 +233,22 @@ describe('joining', () => {
 
     expect(JSON.stringify((await h.click(CustomId.Join, 'a')).body)).toContain('ya está cerrada');
   });
+
+  it('ignores an unrecognised button instead of quietly removing the clicker', async () => {
+    const h = harness();
+    await h.openRotation();
+    await h.click(CustomId.Join, 'a');
+    await h.click(CustomId.Join, 'b');
+
+    // Both the id of another feature and an unknown id inside our own namespace used to
+    // fall into the "leave" branch.
+    for (const unknownId of ['some:other:button', 'rot:somethingnew']) {
+      const response = await h.click(unknownId, 'a');
+
+      expect(JSON.stringify(response.body)).toContain('No reconozco ese botón');
+      expect((await h.deps.store.read(CHANNEL)).pool?.participants).toEqual(['a', 'b']);
+    }
+  });
 });
 
 describe('closing and rotating', () => {
@@ -361,5 +382,60 @@ describe('the scheduled close', () => {
 
     expect(response).toEqual({ status: 200, body: { skipped: true } });
     expect(h.created).toHaveLength(after);
+  });
+});
+
+describe('extensibility', () => {
+  const fakeFeature: Feature<AppDeps> = {
+    name: 'fake',
+    commands: [
+      {
+        definition: { name: 'ping', type: 1, description: 'a second command' },
+        handle: async () => ({ type: CallbackType.ChannelMessageWithSource, data: { content: 'pong from fake' } }),
+      },
+    ],
+    components: [
+      {
+        prefix: 'fake:',
+        handle: async () => ({ type: CallbackType.UpdateMessage, data: { content: 'fake button' } }),
+      },
+    ],
+  };
+
+  it('routes a second feature command without any change to the server', async () => {
+    const h = harness([fakeFeature]);
+
+    const response = await h.post('/interactions', {
+      type: InteractionType.ApplicationCommand,
+      channel_id: CHANNEL,
+      member: { user: { id: 'a', username: 'a' } },
+      data: { name: 'ping' },
+    });
+
+    expect(response.body).toEqual({
+      type: CallbackType.ChannelMessageWithSource,
+      data: { content: 'pong from fake' },
+    });
+  });
+
+  it('routes a second feature button by its own namespace', async () => {
+    const h = harness([fakeFeature]);
+
+    expect((await h.click('fake:anything', 'a')).body).toEqual({
+      type: CallbackType.UpdateMessage,
+      data: { content: 'fake button' },
+    });
+  });
+
+  it('leaves the rotation feature working alongside it', async () => {
+    const h = harness([fakeFeature]);
+    await h.openRotation();
+    await h.click(CustomId.Join, 'a');
+
+    expect((await h.deps.store.read(CHANNEL)).pool?.participants).toEqual(['a']);
+  });
+
+  it('refuses to start if two features claim the same command', () => {
+    expect(() => createRegistry([...features, ...features])).toThrow(/Duplicate command/);
   });
 });

@@ -1,4 +1,8 @@
-import type { RoundResult } from '../types.ts';
+/** Outcome of a single draw. `benched` becomes the next round's immune list. */
+export type RoundResult = {
+  playing: string[];
+  benched: string[];
+};
 
 /** Hard cap of the game: five people per match, no exceptions. */
 export const GROUP_SIZE = 5;

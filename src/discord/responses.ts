@@ -1,6 +1,6 @@
 import { CallbackType, MessageFlags } from './constants.ts';
 import type { MessagePayload } from './rest.ts';
-import type { InteractionResponse } from '../types.ts';
+import type { InteractionResponse } from './types.ts';
 
 /** Only the person who clicked sees this. Used for every error and acknowledgement. */
 export function ephemeral(content: string): InteractionResponse {

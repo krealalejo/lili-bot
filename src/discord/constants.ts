@@ -33,8 +33,16 @@ export const MessageFlags = {
   Ephemeral: 64,
 } as const;
 
-export const CustomId = {
-  Join: 'rot:join',
-  Leave: 'rot:leave',
-  Close: 'rot:close',
+
+export const CommandType = {
+  ChatInput: 1,
+} as const;
+
+export const CommandOptionType = {
+  String: 3,
+  Integer: 4,
+} as const;
+
+export const InteractionContext = {
+  Guild: 0,
 } as const;

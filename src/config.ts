@@ -2,8 +2,6 @@ export const DEFAULT_DURATION_SECONDS = 120;
 export const MIN_DURATION_SECONDS = 10;
 export const MAX_DURATION_SECONDS = 3600;
 
-export const COMMAND_NAME = 'rotacion';
-
 function required(name: string): string {
   const value = process.env[name];
   if (value === undefined || value.trim() === '') {

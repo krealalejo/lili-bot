@@ -1,16 +1,17 @@
-import { CustomId } from '../discord/constants.ts';
-import { closedMessage, resultMessage, signupMessage } from '../discord/render.ts';
-import { ephemeral, updateMessage } from '../discord/responses.ts';
-import { isOpen, joinPool, leavePool } from '../domain/pool.ts';
+import { actorOf, displayNameOf } from '../../discord/interaction.ts';
+import { ephemeral, updateMessage } from '../../discord/responses.ts';
+import type { Interaction, InteractionResponse } from '../../discord/types.ts';
 import { commitClose } from './close.ts';
-import { actorOf, displayNameOf, type Deps } from './deps.ts';
-import type { Interaction, InteractionResponse } from '../discord/types.ts';
+import type { RotationDeps } from './deps.ts';
+import { CustomId } from './ids.ts';
+import { isOpen, joinPool, leavePool } from './pool.ts';
+import { closedMessage, resultMessage, signupMessage } from './render.ts';
 
 const ALREADY_CLOSED = 'Esa convocatoria ya está cerrada.';
 
 export async function handleButton(
   interaction: Interaction,
-  deps: Deps,
+  deps: RotationDeps,
 ): Promise<InteractionResponse> {
   const channelId = interaction.channel_id;
   const actor = actorOf(interaction);

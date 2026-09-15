@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createDocumentStore } from './store.ts';
-import { createMemoryFirestore } from '../state/memory.ts';
+import { createMemoryFirestore } from './memory.ts';
 
 type Counter = { hits: number; label: string };
 

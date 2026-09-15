@@ -1,23 +1,28 @@
 import { randomBytes } from 'node:crypto';
 import { createServer, type IncomingMessage } from 'node:http';
-import { COMMAND_NAME, loadServerConfig } from './config.ts';
+import { loadServerConfig } from './config.ts';
+import type { HttpRequest } from './core/http.ts';
+import { createRegistry } from './core/registry.ts';
 import { createDiscordRest } from './discord/rest.ts';
+import { features } from './features/index.ts';
+import { createRotationStore } from './features/rotation/index.ts';
 import { createMetadataTokenSource } from './gcp/auth.ts';
 import { createFirestore } from './gcp/firestore.ts';
 import { createCloudTasks } from './gcp/tasks.ts';
-import { createApp, type HttpRequest } from './server.ts';
-import { createStore } from './state/rotations.ts';
+import { createApp } from './server.ts';
 
 /** Discord interaction payloads are small; anything larger is not ours. */
 const MAX_BODY_BYTES = 256 * 1024;
 
 const config = loadServerConfig();
 const getToken = createMetadataTokenSource();
+const firestore = createFirestore(config.projectId, getToken);
 
 const app = createApp({
   publicKeyHex: config.discordPublicKey,
-  commandName: COMMAND_NAME,
-  store: createStore(createFirestore(config.projectId, getToken)),
+  // Clashes between features throw here, at boot, rather than in production.
+  registry: createRegistry(features),
+  store: createRotationStore(firestore),
   tasks: createCloudTasks(
     {
       projectId: config.projectId,

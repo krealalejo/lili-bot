@@ -1,39 +1,20 @@
-import { timingSafeEqual } from 'node:crypto';
+import type { HttpRequest, HttpResponse } from './core/http.ts';
+import type { Registry } from './core/registry.ts';
+import type { AppDeps } from './deps.ts';
 import { InteractionType } from './discord/constants.ts';
-import { closedMessage, resultMessage } from './discord/render.ts';
 import { ephemeral, pong } from './discord/responses.ts';
-import { isSignatureValid } from './discord/verify.ts';
-import { handleButton } from './handlers/buttons.ts';
-import { commitClose } from './handlers/close.ts';
-import { handleRotacion } from './handlers/rotacion.ts';
-import type { Deps } from './handlers/deps.ts';
 import type { Interaction } from './discord/types.ts';
+import { isSignatureValid } from './discord/verify.ts';
+import { handleScheduledClose } from './features/rotation/index.ts';
 
-export type HttpRequest = {
-  method: string;
-  path: string;
-  headers: Record<string, string | undefined>;
-  rawBody: string;
-};
+export type { HttpRequest, HttpResponse } from './core/http.ts';
 
-export type HttpResponse = {
-  status: number;
-  body?: unknown;
-};
-
-export type AppDeps = Deps & {
+export type ServerDeps = AppDeps & {
   publicKeyHex: string;
-  commandName: string;
+  registry: Registry<AppDeps>;
 };
 
-function constantTimeEquals(a: string, b: string): boolean {
-  const left = Buffer.from(a, 'utf8');
-  const right = Buffer.from(b, 'utf8');
-
-  return left.length === right.length && timingSafeEqual(left, right);
-}
-
-async function handleInteraction(rawBody: string, deps: AppDeps): Promise<HttpResponse> {
+async function handleInteraction(rawBody: string, deps: ServerDeps): Promise<HttpResponse> {
   let interaction: Interaction;
   try {
     interaction = JSON.parse(rawBody) as Interaction;
@@ -48,15 +29,19 @@ async function handleInteraction(rawBody: string, deps: AppDeps): Promise<HttpRe
 
   try {
     if (interaction.type === InteractionType.ApplicationCommand) {
-      if (interaction.data?.name !== deps.commandName) {
-        return { status: 200, body: ephemeral('No conozco ese comando.') };
-      }
+      const command = deps.registry.command(interaction.data?.name);
 
-      return { status: 200, body: await handleRotacion(interaction, deps) };
+      return command === undefined
+        ? { status: 200, body: ephemeral('No conozco ese comando.') }
+        : { status: 200, body: await command.handle(interaction, deps) };
     }
 
     if (interaction.type === InteractionType.MessageComponent) {
-      return { status: 200, body: await handleButton(interaction, deps) };
+      const component = deps.registry.component(interaction.data?.custom_id);
+
+      return component === undefined
+        ? { status: 200, body: ephemeral('No reconozco ese botón.') }
+        : { status: 200, body: await component.handle(interaction, deps) };
     }
 
     return { status: 200, body: ephemeral('No sé qué hacer con eso.') };
@@ -69,63 +54,7 @@ async function handleInteraction(rawBody: string, deps: AppDeps): Promise<HttpRe
   }
 }
 
-/**
- * The delayed auto-close, called back by Cloud Tasks at `closesAt`.
- *
- * The service must accept unauthenticated requests because Discord does not authenticate,
- * so this route cannot lean on IAM. Instead the task carries the single-use secret written
- * into the pool document when it was opened.
- */
-async function handleScheduledClose(rawBody: string, deps: AppDeps): Promise<HttpResponse> {
-  let payload: { channelId?: string; closeSecret?: string };
-  try {
-    payload = JSON.parse(rawBody) as { channelId?: string; closeSecret?: string };
-  } catch {
-    return { status: 400, body: { error: 'invalid json' } };
-  }
-
-  const { channelId, closeSecret } = payload;
-  if (channelId === undefined || closeSecret === undefined) {
-    return { status: 400, body: { error: 'missing fields' } };
-  }
-
-  const doc = await deps.store.read(channelId);
-
-  // Closed early by the button, or a stale task: nothing to do, and a 200 stops
-  // Cloud Tasks retrying.
-  if (doc.pool === null || !constantTimeEquals(doc.pool.closeSecret, closeSecret)) {
-    return { status: 200, body: { skipped: true } };
-  }
-
-  const outcome = await commitClose(channelId, deps);
-  if (!outcome.closed) {
-    return { status: 200, body: { skipped: true } };
-  }
-
-  // Past this point the round is committed, so failures must not trigger a retry that
-  // would find nothing to close and announce nothing.
-  try {
-    await deps.discord.editMessage(
-      channelId,
-      outcome.pool.messageId,
-      closedMessage(outcome.participants.length, 'Se acabó el tiempo'),
-    );
-    await deps.discord.createMessage(
-      channelId,
-      resultMessage({
-        result: outcome.result,
-        participants: outcome.participants,
-        immune: outcome.immune,
-      }),
-    );
-  } catch (error) {
-    console.error('[close] round committed but announcing it failed', error);
-  }
-
-  return { status: 200, body: { closed: true } };
-}
-
-export function createApp(deps: AppDeps): (request: HttpRequest) => Promise<HttpResponse> {
+export function createApp(deps: ServerDeps): (request: HttpRequest) => Promise<HttpResponse> {
   return async function handle(request: HttpRequest): Promise<HttpResponse> {
     if (request.method === 'GET' && request.path === '/healthz') {
       return { status: 200, body: { ok: true } };
@@ -151,6 +80,8 @@ export function createApp(deps: AppDeps): (request: HttpRequest) => Promise<Http
       return handleInteraction(request.rawBody, deps);
     }
 
+    // The one route still tied to a specific feature. Worth generalising the same way as
+    // commands once a second feature needs delayed work; not before.
     if (request.path === '/close') {
       return handleScheduledClose(request.rawBody, deps);
     }

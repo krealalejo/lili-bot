@@ -1,38 +1,12 @@
-import {
-  COMMAND_NAME,
-  loadCommandConfig,
-  MAX_DURATION_SECONDS,
-  MIN_DURATION_SECONDS,
-  DEFAULT_DURATION_SECONDS,
-} from './config.ts';
+import { loadCommandConfig } from './config.ts';
+import { createRegistry } from './core/registry.ts';
+import { features } from './features/index.ts';
 
 const API_BASE = 'https://discord.com/api/v10';
 
-// Option types: 3 = STRING, 4 = INTEGER. Context 0 = GUILD.
-const command = {
-  name: COMMAND_NAME,
-  type: 1,
-  description: 'Abre una convocatoria: pulsa Apuntarme para entrar en el sorteo',
-  contexts: [0],
-  options: [
-    {
-      name: 'duracion',
-      type: 4,
-      description: `Segundos que sigue abierta (por defecto ${DEFAULT_DURATION_SECONDS})`,
-      required: false,
-      min_value: MIN_DURATION_SECONDS,
-      max_value: MAX_DURATION_SECONDS,
-    },
-    {
-      name: 'nota',
-      type: 3,
-      description: 'Texto extra para la convocatoria',
-      required: false,
-      max_length: 200,
-    },
-  ],
-};
-
+// Whatever the features declare is what gets registered: there is no second copy of the
+// command JSON to drift out of sync with the handlers.
+const definitions = createRegistry(features).definitions();
 const config = loadCommandConfig();
 
 // Guild-scoped commands appear instantly; global ones take up to an hour to propagate.
@@ -46,7 +20,7 @@ const response = await fetch(`${API_BASE}${path}`, {
     Authorization: `Bot ${config.discordToken}`,
     'Content-Type': 'application/json',
   },
-  body: JSON.stringify([command]),
+  body: JSON.stringify(definitions),
 });
 
 if (!response.ok) {
@@ -54,8 +28,9 @@ if (!response.ok) {
   process.exit(1);
 }
 
+const names = definitions.map((definition) => `/${definition.name}`).join(', ');
 console.log(
   config.guildId
-    ? `[deploy] /${COMMAND_NAME} registrado en el servidor ${config.guildId}`
-    : `[deploy] /${COMMAND_NAME} registrado globalmente (tarda en propagarse)`,
+    ? `[deploy] ${names} registrado(s) en el servidor ${config.guildId}`
+    : `[deploy] ${names} registrado(s) globalmente (tarda en propagarse)`,
 );

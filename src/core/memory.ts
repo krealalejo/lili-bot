@@ -1,9 +1,9 @@
-import { createStore, type Store } from './rotations.ts';
 import type { Firestore } from '../gcp/firestore.ts';
 
 /**
- * An in-memory Firestore stand-in. Used by the tests to drive the real handlers and the
- * real store logic without a network, and to run the server locally without a GCP project.
+ * An in-memory Firestore stand-in with the same optimistic-concurrency contract as the
+ * real client. The tests build their stores on top of this, so they exercise the real
+ * store logic without a network.
  */
 export function createMemoryFirestore(): Firestore {
   const documents = new Map<string, { data: Record<string, unknown>; updateTime: string }>();
@@ -24,22 +24,14 @@ export function createMemoryFirestore(): Firestore {
       const stored = documents.get(key(collection, id));
       const actual = stored?.updateTime ?? null;
 
-      // Same optimistic-concurrency contract as the real client.
       if (actual !== expectedUpdateTime) {
         return false;
       }
 
       clock += 1;
-      documents.set(key(collection, id), {
-        data: structuredClone(data),
-        updateTime: `t${clock}`,
-      });
+      documents.set(key(collection, id), { data: structuredClone(data), updateTime: `t${clock}` });
 
       return true;
     },
   };
-}
-
-export function createMemoryStore(): Store {
-  return createStore(createMemoryFirestore());
 }

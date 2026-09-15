@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { hasJoined, isOpen, joinPool, leavePool } from './pool.ts';
-import type { Pool } from '../types.ts';
+import type { Pool } from './state.ts';
 
 const pool = (participants: string[] = [], closesAt = 2_000): Pool => ({
   messageId: 'm1',

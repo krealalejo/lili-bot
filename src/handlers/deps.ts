@@ -1,7 +1,7 @@
 import type { DiscordRest } from '../discord/rest.ts';
 import type { Store } from '../state/rotations.ts';
 import type { Tasks } from '../gcp/tasks.ts';
-import type { Interaction, InteractionUser } from '../types.ts';
+import type { Interaction, InteractionUser } from '../discord/types.ts';
 
 /**
  * Everything the handlers touch that is not pure, injected rather than imported, so the

@@ -4,7 +4,7 @@ import { ephemeral, updateMessage } from '../discord/responses.ts';
 import { isOpen, joinPool, leavePool } from '../domain/pool.ts';
 import { commitClose } from './close.ts';
 import { actorOf, displayNameOf, type Deps } from './deps.ts';
-import type { Interaction, InteractionResponse } from '../types.ts';
+import type { Interaction, InteractionResponse } from '../discord/types.ts';
 
 const ALREADY_CLOSED = 'Esa convocatoria ya está cerrada.';
 

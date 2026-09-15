@@ -3,7 +3,7 @@ import { isOpen } from '../domain/pool.ts';
 import { closedMessage, signupMessage } from '../discord/render.ts';
 import { ephemeral } from '../discord/responses.ts';
 import { actorOf, optionValue, type Deps } from './deps.ts';
-import type { Interaction, InteractionResponse } from '../types.ts';
+import type { Interaction, InteractionResponse } from '../discord/types.ts';
 
 const clamp = (seconds: number): number =>
   Math.min(MAX_DURATION_SECONDS, Math.max(MIN_DURATION_SECONDS, Math.trunc(seconds)));

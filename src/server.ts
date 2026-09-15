@@ -7,7 +7,7 @@ import { handleButton } from './handlers/buttons.ts';
 import { commitClose } from './handlers/close.ts';
 import { handleRotacion } from './handlers/rotacion.ts';
 import type { Deps } from './handlers/deps.ts';
-import type { Interaction } from './types.ts';
+import type { Interaction } from './discord/types.ts';
 
 export type HttpRequest = {
   method: string;

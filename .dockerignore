@@ -1,0 +1,10 @@
+.git
+.github
+node_modules
+data
+docs
+deploy
+*.md
+src/**/*.test.ts
+pnpm-lock.yaml
+tsconfig.json

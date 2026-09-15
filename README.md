@@ -1,17 +1,18 @@
 # lilibot
 
-Bot de Discord para repartir las plazas de un grupo de juego que sólo admite **5 personas por
-partida**. Abre una convocatoria, la gente se apunta reaccionando, y cuando se cierra el bot
-sortea a quién le toca quedarse fuera — recordando a los de la ronda anterior para que no
-caigan siempre los mismos.
+Bot de Discord para repartir las plazas de un grupo de juego que solo admite **5 personas por
+partida**. Abre una convocatoria, la gente se apunta pulsando un botón, y al cerrarse sortea a
+quién le toca quedarse fuera — recordando a los de la ronda anterior para que no caigan siempre
+los mismos.
+
+Corre en Google Cloud Run **por 0 €/mes**.
 
 ## Cómo funciona
 
-1. `/rotacion` publica un mensaje de convocatoria con un botón **Cerrar convocatoria**.
-2. La gente reacciona con **cualquier emoji**. Da igual cuál, y da igual cuántos: cada persona
-   cuenta una sola vez.
-3. La convocatoria se cierra por tiempo o por el botón, lo que ocurra antes. Cualquiera del
-   canal puede pulsarlo.
+1. `/rotacion` publica una convocatoria con los botones **Apuntarme**, **Salir** y
+   **Cerrar convocatoria**.
+2. La gente pulsa Apuntarme. Cada persona cuenta una vez, por mucho que pulse.
+3. Se cierra por tiempo o por el botón, lo que ocurra antes. Puede cerrarla cualquiera del canal.
 4. Reparto:
    - **5 o menos** apuntados → juegan todos, no hay rotación (y se borra la memoria).
    - **Más de 5** → los sobrantes se sortean al azar. Quien se quedó fuera la ronda pasada
@@ -22,84 +23,84 @@ caigan siempre los mismos.
 
 La memoria es por canal: cada canal lleva su propia rotación.
 
-## Requisitos
-
-- Node **24 o superior** (el proyecto ejecuta TypeScript directamente, sin paso de compilación)
-- pnpm
-- Una aplicación de Discord con su bot
-
-## Instalación
-
-```bash
-pnpm install
-cp env.example .env
-```
-
-Rellena `.env` con los valores de tu aplicación:
-
-| Variable | Qué es |
-|---|---|
-| `DISCORD_TOKEN` | Token del bot (Discord Developer Portal → Bot → Reset Token) |
-| `CLIENT_ID` | Application ID (General Information) |
-| `GUILD_ID` | ID del servidor de pruebas. Con él los comandos aparecen al instante; déjalo vacío para registrarlos globalmente |
-
-`.env` está en `.gitignore` — no lo subas.
-
-## Configuración en el Developer Portal
-
-1. **Bot → Privileged Gateway Intents**: no hace falta activar ninguno. El bot no lee mensajes.
-2. **OAuth2 → URL Generator**: scopes `bot` y `applications.commands`.
-3. Permisos del bot: `View Channel`, `Send Messages`, `Embed Links`, `Add Reactions`,
-   `Read Message History`.
-4. Invita el bot con la URL generada.
-
-## Uso
-
-```bash
-pnpm commands   # registra /rotacion (una vez, y cada vez que cambie el comando)
-pnpm dev        # arranca en modo watch
-pnpm start      # arranca normal
-```
-
-En Discord:
+## Arquitectura
 
 ```
-/rotacion
-/rotacion duracion:300
-/rotacion duracion:60 nota:Ranked a las 22:00
+Discord ──POST /interactions──► Cloud Run (escala a cero)
+                                   │  verifica Ed25519, luego actúa
+                                   ├──► Firestore    rotations/{channelId}
+                                   ├──► Discord REST (token del bot)
+                                   └──► Cloud Tasks  programa el cierre
+Cloud Tasks ──POST /close (a la hora)──► Cloud Run
 ```
 
-| Opción | Por defecto | Rango |
-|---|---|---|
-| `duracion` | 120 s | 10 – 3600 s |
-| `nota` | — | hasta 200 caracteres |
+No hay gateway ni WebSocket: Discord llama al bot, no al revés. Por eso no hace falta un
+proceso encendido todo el día, y por eso el apuntarse es un botón y no una reacción — las
+reacciones solo existen en el gateway.
 
-## Comandos de desarrollo
-
-```bash
-pnpm test       # tests de la lógica de reparto
-pnpm typecheck  # tsc --noEmit
-```
+**Cero dependencias de runtime.** Ni `discord.js` ni SDKs de Google: Node 24 trae Ed25519 en
+WebCrypto y `fetch`, y las APIs de Google se hablan por REST con el token del metadata server.
+Eso deja la imagen en lo mínimo y el arranque en **~85 ms**, que es lo que mantiene al bot
+dentro del límite de 3 segundos que impone Discord.
 
 ## Estructura
 
 ```
 src/
-  domain/rotation.ts       la regla de reparto, sin discord.js: sorteo e inmunidad
-  domain/rotation.test.ts  tests de esa regla
-  state/store.ts           memoria de la rotación + persistencia en data/state.json
-  pools.ts                 convocatorias abiertas ahora mismo (sólo en memoria)
-  commands/rotacion.ts     el comando, el ReactionCollector y el cierre
-  index.ts                 cliente, intents y enrutado de interacciones
+  domain/rotation.ts       la regla de reparto: sorteo e inmunidad. Sin I/O
+  domain/pool.ts           entrar y salir de una convocatoria. Sin I/O
+  discord/verify.ts        verificación Ed25519 de cada petición
+  discord/rest.ts          llamadas a la API de Discord
+  discord/render.ts        embeds y botones como JSON
+  gcp/auth.ts              token de acceso del metadata server
+  gcp/firestore.ts         cliente REST de Firestore
+  gcp/tasks.ts             programación del cierre en Cloud Tasks
+  state/rotations.ts       el documento de rotación, con reintento optimista
+  state/memory.ts          Firestore en memoria, para los tests
+  handlers/               el comando, los botones y el cierre compartido
+  server.ts                rutas y despacho
+  index.ts                 servidor HTTP
   deploy-commands.ts       registro del slash command
 ```
 
+La lógica que de verdad importa (`src/domain/`) no sabe que existen Discord ni Google, así que
+se prueba entera sin red.
+
+## Desarrollo
+
+```bash
+pnpm install
+pnpm test        # 55 tests
+pnpm typecheck
+```
+
+Los tests mueven el servidor real con firmas Ed25519 reales y un Firestore en memoria: el flujo
+completo (PING, `/rotacion`, apuntarse, cerrar, rotar) se verifica sin GCP y sin Discord.
+
+Para ejecutar en local hace falta un `.env` con `DISCORD_TOKEN`, `APPLICATION_ID`,
+`DISCORD_PUBLIC_KEY`, `GCP_PROJECT` y `SERVICE_URL` (copia `env.example`), y después
+`pnpm dev`. Ten en cuenta que Discord necesita una URL pública para llamarte, así que en local
+hace falta un túnel.
+
+## Despliegue
+
+Ver **[docs/deploy-gcp.md](docs/deploy-gcp.md)**. Resumen:
+
+```bash
+PROJECT_ID=tu-proyecto ./deploy/provision.sh
+PROJECT_ID=tu-proyecto APPLICATION_ID=123456789 ./deploy/deploy.sh
+```
+
+Y pegar `https://TU-SERVICIO.run.app/interactions` en el Interactions Endpoint URL del
+Developer Portal.
+
+> El free tier de Cloud Run solo existe en `us-central1`, `us-east1` y `us-west1`. Los scripts
+> rechazan cualquier otra región para que no te lleves una factura por sorpresa.
+
 ## Notas
 
-- **Si el bot se reinicia con una convocatoria abierta, esa convocatoria se pierde.** La
-  memoria de la rotación no: vive en `data/state.json` y se recarga al arrancar.
-- Quitar un emoji no te borra de la lista. Sólo sales de la convocatoria cuando no te queda
-  ninguna reacción en el mensaje.
-- Si `data/state.json` se corrompe, el bot arranca sin memoria en lugar de caerse.
-- Una convocatoria abierta por canal. El segundo `/rotacion` se rechaza hasta que cierres la
-  primera.
+- Una convocatoria abierta por canal. El segundo `/rotacion` se rechaza hasta cerrar la primera.
+- Si la convocatoria caduca, el botón de apuntarse contesta que ya está cerrada.
+- El cierre por botón deja la tarea programada en el aire: cuando salta, no encuentra nada que
+  cerrar y no hace nada.
+- Una convocatoria vacía **no** borra la memoria de rotación: nadie jugó, nadie pagó su turno.

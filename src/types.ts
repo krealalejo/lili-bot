@@ -46,3 +46,25 @@ export type RotationDoc = {
   lastRoundAt: string | null;
   pool: Pool | null;
 };
+
+/** The subset of Discord's interaction payload this bot reads. */
+export type InteractionUser = { id: string; username?: string; global_name?: string | null };
+
+export type CommandOption = { name: string; type: number; value?: string | number };
+
+export type Interaction = {
+  type: number;
+  channel_id?: string;
+  member?: { user?: InteractionUser };
+  user?: InteractionUser;
+  data?: {
+    name?: string;
+    custom_id?: string;
+    options?: CommandOption[];
+  };
+};
+
+export type InteractionResponse = {
+  type: number;
+  data?: Record<string, unknown>;
+};

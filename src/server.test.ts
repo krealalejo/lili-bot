@@ -167,7 +167,10 @@ describe('opening a convocatoria', () => {
     expect(h.created).toHaveLength(1);
     expect(h.created[0]?.channelId).toBe(CHANNEL);
     expect(h.scheduled).toEqual([
-      { payload: { channelId: CHANNEL, closeSecret: 'secret-1' }, at: h.now() + 300_000 },
+      {
+        payload: { job: 'rotation', channelId: CHANNEL, closeSecret: 'secret-1' },
+        at: h.now() + 300_000,
+      },
     ]);
   });
 
@@ -350,6 +353,37 @@ describe('the scheduled close', () => {
     expect(JSON.stringify(h.created.at(-1)?.payload)).toContain('Nominados (2)');
   });
 
+  it('routes a task queued before jobs existed to the rotation', async () => {
+    const h = harness();
+    await h.openRotation(60);
+    await h.click(CustomId.Join, 'a');
+
+    const response = await h.app({
+      method: 'POST',
+      path: '/close',
+      headers: {},
+      rawBody: JSON.stringify({ channelId: CHANNEL, closeSecret: 'secret-1' }),
+    });
+
+    expect(response).toEqual({ status: 200, body: { closed: true } });
+    expect((await h.deps.store.read(CHANNEL)).pool).toBeNull();
+  });
+
+  it('skips a task for a job no feature handles', async () => {
+    const h = harness();
+    await h.openRotation(60);
+
+    const response = await h.app({
+      method: 'POST',
+      path: '/close',
+      headers: {},
+      rawBody: JSON.stringify({ job: 'gone', channelId: CHANNEL, closeSecret: 'secret-1' }),
+    });
+
+    expect(response).toEqual({ status: 200, body: { skipped: true } });
+    expect((await h.deps.store.read(CHANNEL)).pool).not.toBeNull();
+  });
+
   it('ignores a task whose secret does not match', async () => {
     const h = harness();
     await h.openRotation(60);
@@ -400,6 +434,7 @@ describe('extensibility', () => {
         handle: async () => ({ type: CallbackType.UpdateMessage, data: { content: 'fake button' } }),
       },
     ],
+    jobs: [],
   };
 
   it('routes a second feature command without any change to the server', async () => {

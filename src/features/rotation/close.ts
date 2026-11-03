@@ -15,6 +15,8 @@ export type CloseOutcome =
       result: RoundResult;
     };
 
+export const CLOSE_JOB = 'rotation';
+
 type Resolved = { pool: Pool; immune: Set<string>; result: RoundResult };
 
 /**

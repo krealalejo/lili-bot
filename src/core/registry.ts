@@ -1,4 +1,5 @@
 import type { CommandDefinition, Interaction, InteractionResponse } from '../discord/types.ts';
+import type { HttpResponse } from './http.ts';
 
 /**
  * Generic over the dependency bag so that core knows nothing about what a feature needs.
@@ -18,15 +19,22 @@ export type ComponentModule<D> = {
   handle: Handler<D>;
 };
 
+export type JobModule<D> = {
+  name: string;
+  handle: (rawBody: string, deps: D) => Promise<HttpResponse>;
+};
+
 export type Feature<D> = {
   name: string;
   commands: CommandModule<D>[];
   components: ComponentModule<D>[];
+  jobs: JobModule<D>[];
 };
 
 export type Registry<D> = {
   command(name: string | undefined): CommandModule<D> | undefined;
   component(customId: string | undefined): ComponentModule<D> | undefined;
+  job(name: string): JobModule<D> | undefined;
   /** Every command definition, for `deploy-commands.ts` to register. */
   definitions(): CommandDefinition[];
 };
@@ -39,6 +47,7 @@ export type Registry<D> = {
 export function createRegistry<D>(features: readonly Feature<D>[]): Registry<D> {
   const commands = new Map<string, CommandModule<D>>();
   const components: ComponentModule<D>[] = [];
+  const jobs = new Map<string, JobModule<D>>();
 
   for (const feature of features) {
     for (const command of feature.commands) {
@@ -68,6 +77,14 @@ export function createRegistry<D>(features: readonly Feature<D>[]): Registry<D> 
 
       components.push(component);
     }
+
+    for (const job of feature.jobs) {
+      if (jobs.has(job.name)) {
+        throw new Error(`Duplicate job "${job.name}" declared by feature "${feature.name}"`);
+      }
+
+      jobs.set(job.name, job);
+    }
   }
 
   // Longest prefix first keeps resolution predictable even as namespaces grow.
@@ -82,6 +99,10 @@ export function createRegistry<D>(features: readonly Feature<D>[]): Registry<D> 
       return customId === undefined
         ? undefined
         : components.find((candidate) => customId.startsWith(candidate.prefix));
+    },
+
+    job(name) {
+      return jobs.get(name);
     },
 
     definitions() {

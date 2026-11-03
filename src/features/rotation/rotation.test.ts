@@ -1,19 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { GROUP_SIZE, resolveRound, shuffle } from './rotation.ts';
+import { GROUP_SIZE, resolveRound } from './rotation.ts';
 
 const users = (n: number): string[] => Array.from({ length: n }, (_, i) => `u${i + 1}`);
 const none = new Set<string>();
-
-describe('shuffle', () => {
-  it('keeps every element and does not mutate the input', () => {
-    const input = users(8);
-    const snapshot = [...input];
-    const result = shuffle(input);
-
-    expect(input).toEqual(snapshot);
-    expect([...result].sort()).toEqual([...input].sort());
-  });
-});
 
 describe('resolveRound', () => {
   it('lets everybody play when the group is not full', () => {

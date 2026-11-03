@@ -9,6 +9,7 @@ import { ephemeral } from '../../discord/responses.ts';
 import type { CommandDefinition, Interaction, InteractionResponse } from '../../discord/types.ts';
 import type { CommandModule } from '../../core/registry.ts';
 import type { RotationDeps } from './deps.ts';
+import { CLOSE_JOB } from './close.ts';
 import { isOpen } from './pool.ts';
 import { closedMessage, signupMessage } from './render.ts';
 
@@ -119,7 +120,7 @@ export async function handleRotacion(
     return ephemeral('Ya hay una convocatoria abierta en este canal.');
   }
 
-  await deps.tasks.scheduleClose({ channelId, closeSecret }, closesAt);
+  await deps.tasks.scheduleClose({ job: CLOSE_JOB, channelId, closeSecret }, closesAt);
 
   return ephemeral('Convocatoria abierta 👇');
 }

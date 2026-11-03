@@ -5,4 +5,5 @@ export const gragussyFeature: Feature<unknown> = {
   name: 'gragussy',
   commands: [gragussyCommand],
   components: [],
+  jobs: [],
 };

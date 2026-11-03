@@ -11,7 +11,7 @@ const config = {
 describe('buildCloseTask', () => {
   it('schedules the callback at the closing time', () => {
     const at = Date.UTC(2026, 8, 15, 20, 30, 0);
-    const task = buildCloseTask(config, { channelId: '123', closeSecret: 's' }, at) as {
+    const task = buildCloseTask(config, { job: 'rotation', channelId: '123', closeSecret: 's' }, at) as {
       task: { scheduleTime: string };
     };
 
@@ -19,13 +19,14 @@ describe('buildCloseTask', () => {
   });
 
   it('base64-encodes the payload Cloud Tasks will post back', () => {
-    const task = buildCloseTask(config, { channelId: '123', closeSecret: 'secret' }, 0) as {
+    const task = buildCloseTask(config, { job: 'rotation', channelId: '123', closeSecret: 'secret' }, 0) as {
       task: { httpRequest: { url: string; httpMethod: string; body: string } };
     };
 
     expect(task.task.httpRequest.url).toBe(config.targetUrl);
     expect(task.task.httpRequest.httpMethod).toBe('POST');
     expect(JSON.parse(Buffer.from(task.task.httpRequest.body, 'base64').toString('utf8'))).toEqual({
+      job: 'rotation',
       channelId: '123',
       closeSecret: 'secret',
     });

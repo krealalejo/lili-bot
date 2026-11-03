@@ -1,3 +1,5 @@
+import { shuffle } from '../../core/random.ts';
+
 /** Outcome of a single draw. `benched` becomes the next round's immune list. */
 export type RoundResult = {
   playing: string[];
@@ -6,16 +8,6 @@ export type RoundResult = {
 
 /** Hard cap of the game: five people per match, no exceptions. */
 export const GROUP_SIZE = 5;
-
-/** Fisher-Yates on a copy, so the caller's array is never mutated. */
-export function shuffle<T>(items: readonly T[]): T[] {
-  const copy = [...items];
-  for (let i = copy.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [copy[i], copy[j]] = [copy[j], copy[i]];
-  }
-  return copy;
-}
 
 /**
  * The whole business rule, kept free of discord.js so it can be tested on its own.

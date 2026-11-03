@@ -4,6 +4,7 @@ const API_BASE = 'https://cloudtasks.googleapis.com/v2';
 const TIMEOUT_MS = 5_000;
 
 export type CloseTaskPayload = {
+  job: string;
   channelId: string;
   closeSecret: string;
 };

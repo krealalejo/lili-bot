@@ -22,6 +22,7 @@ const feature = (
     },
   ],
   components: [{ prefix, handle: reply(`${name}:component`) }],
+  jobs: [{ name: `${name}:close`, handle: async () => ({ status: 200, body: { job: name } }) }],
 });
 
 const noDeps: NoDeps = {};
@@ -74,6 +75,23 @@ describe('createRegistry', () => {
     expect(() =>
       createRegistry([feature('a', 'one', 'rot:'), feature('b', 'two', 'rot:extra:')]),
     ).toThrow(/overlaps/);
+  });
+
+  it('routes a job by name', async () => {
+    const registry = createRegistry([feature('rotation', 'rotacion', 'rot:')]);
+
+    expect(await registry.job('rotation:close')?.handle('{}', noDeps)).toEqual({
+      status: 200,
+      body: { job: 'rotation' },
+    });
+    expect(registry.job('stats:close')).toBeUndefined();
+  });
+
+  it('refuses two features claiming the same job', () => {
+    const a = feature('a', 'one', 'a:');
+    const b = { ...feature('b', 'two', 'b:'), jobs: a.jobs };
+
+    expect(() => createRegistry([a, b])).toThrow(/Duplicate job "a:close"/);
   });
 
   it('refuses an empty prefix, which would swallow everything', () => {

@@ -5,7 +5,7 @@ import { InteractionType } from './discord/constants.ts';
 import { ephemeral, pong } from './discord/responses.ts';
 import type { Interaction } from './discord/types.ts';
 import { isSignatureValid } from './discord/verify.ts';
-import { handleScheduledClose } from './features/rotation/index.ts';
+import { CLOSE_JOB as LEGACY_CLOSE_JOB } from './features/rotation/index.ts';
 
 export type { HttpRequest, HttpResponse } from './core/http.ts';
 
@@ -54,6 +54,26 @@ async function handleInteraction(rawBody: string, deps: ServerDeps): Promise<Htt
   }
 }
 
+async function handleJob(rawBody: string, deps: ServerDeps): Promise<HttpResponse> {
+  let payload: { job?: unknown } | null;
+  try {
+    payload = JSON.parse(rawBody) as { job?: unknown } | null;
+  } catch {
+    return { status: 400, body: { error: 'invalid json' } };
+  }
+
+  const name = typeof payload?.job === 'string' ? payload.job : LEGACY_CLOSE_JOB;
+  const job = deps.registry.job(name);
+
+  if (job === undefined) {
+    console.error(`[close] no feature handles job "${name}"`);
+
+    return { status: 200, body: { skipped: true } };
+  }
+
+  return job.handle(rawBody, deps);
+}
+
 export function createApp(deps: ServerDeps): (request: HttpRequest) => Promise<HttpResponse> {
   return async function handle(request: HttpRequest): Promise<HttpResponse> {
     if (request.method === 'GET' && request.path === '/healthz') {
@@ -80,10 +100,8 @@ export function createApp(deps: ServerDeps): (request: HttpRequest) => Promise<H
       return handleInteraction(request.rawBody, deps);
     }
 
-    // The one route still tied to a specific feature. Worth generalising the same way as
-    // commands once a second feature needs delayed work; not before.
     if (request.path === '/close') {
-      return handleScheduledClose(request.rawBody, deps);
+      return handleJob(request.rawBody, deps);
     }
 
     return { status: 404, body: { error: 'not found' } };

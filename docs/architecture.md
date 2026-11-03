@@ -11,7 +11,7 @@ Discord calls, with all state in Firestore and all delayed work in Cloud Tasks.
 
 ```mermaid
 flowchart LR
-  user([Discord user]) -->|/rotacion · buttons| discord[Discord]
+  user([Discord user]) -->|/rotacion · /miticas · buttons| discord[Discord]
   discord -->|POST /interactions<br/>Ed25519 signed| run[Cloud Run · scales to zero]
   run -->|read / write state| store[(Firestore<br/>rotations/channelId)]
   run -->|post · edit messages| discord
@@ -160,6 +160,35 @@ nobody sat out, nobody is owed a seat.
 
 An **empty sign-up does not clear the memory**: nobody played, so nobody paid their turn off.
 
+### `/miticas`
+
+The same shape in its own collection, `miticas/{channelId}`, so it never touches the rotation
+memory:
+
+```ts
+{
+  priority: string[],        // benched last round
+  lastRoundAt: string,
+  pool: null | {
+    messageId, hostId, note, closesAt,
+    participants: { id: string, roles: ('tank' | 'healer' | 'dps')[] }[],
+    closeSecret: string,
+  }
+}
+```
+
+The draw (`resolveGroup()` in `src/features/miticas/group.ts`) is a bipartite matching of
+players to the five slots `tank, healer, dps, dps, dps`. Players are tried in priority order —
+last round's benched, shuffled, then everyone else, shuffled — and each one is seated if an
+assignment still exists with them added, reshuffling who plays which role along an augmenting
+path. The players that fit any role layout form a transversal matroid, so this greedy order
+gives the largest possible group and, among the largest, the one with the most benched
+players. That is the product rule: the benched play unless seating them would cost the group a
+role nobody else can fill.
+
+Unlike `/rotacion` the guarantee cannot be unconditional — two benched tank-only players
+cannot both play — so anyone left out keeps priority for the next round.
+
 ### Concurrency
 
 Two people clicking at the same instant is the realistic collision. Writes use an optimistic
@@ -177,7 +206,7 @@ authenticate. So IAM cannot be the gate, and everything rests on signatures.
 - **Every request to `/interactions` is verified with Ed25519** over `timestamp + rawBody`,
   before the payload is parsed. Invalid or missing signature → `401`. The body is read as raw
   bytes; reserialising parsed JSON would change them and break every signature.
-- **`/close` is authenticated by `closeSecret`**, a single-use random value written into the
+- **`/close` is authenticated by `closeSecret`**, checked by the feature that owns the job, a single-use random value written into the
   pool document when it was opened and compared in constant time. A stale or forged task is a
   200 no-op.
 - **The service account holds three roles**, scoped to the two secrets, Firestore, and
@@ -193,7 +222,8 @@ authenticate. So IAM cannot be the gate, and everything rests on signatures.
 ```
 src/
   core/                    infrastructure that knows nothing about any feature
-    registry.ts            routes commands and components to whoever declared them
+    registry.ts            routes commands, components and jobs to whoever declared them
+    random.ts              shuffle, shared by every draw
     store.ts               createDocumentStore<T>: optimistic concurrency, any shape
     http.ts                request and response shapes
     memory.ts              in-memory Firestore for the tests
@@ -202,6 +232,7 @@ src/
   gcp/                     auth.ts  firestore.ts  tasks.ts
   features/
     index.ts               the list of features the bot has
+    miticas/               /miticas: the same layout, with group.ts as its draw
     rotation/
       index.ts             what this feature answers to
       command.ts           /rotacion: its definition and its handler, together
@@ -236,6 +267,7 @@ export const statsFeature: Feature<StatsDeps> = {
   name: 'stats',
   commands: [statsCommand],                              // { definition, handle }
   components: [{ prefix: 'stats:', handle: handleButton }],
+  jobs: [{ name: 'stats', handle: handleScheduledClose }],  // Cloud Tasks callbacks
 };
 ```
 
@@ -243,15 +275,19 @@ then one line in `src/features/index.ts`. `server.ts`, `index.ts` and `deploy-co
 are untouched: the registry routes by command name and by `custom_id` prefix, and
 `deploy-commands.ts` registers whatever `definitions()` returns.
 
-Two mistakes fail at boot rather than in production: two features claiming the same command
-name, and two features claiming overlapping `custom_id` prefixes. `createRegistry` throws on
-both.
+Three mistakes fail at boot rather than in production: two features claiming the same command
+name, two features claiming overlapping `custom_id` prefixes, and two features claiming the
+same job name. `createRegistry` throws on all three.
 
 State is the same story — `createDocumentStore<T>(firestore, 'stats', normalise)` gives a new
 feature its own collection with the same optimistic-concurrency handling, without copying it.
+A feature with its own store adds it to its deps type, to `AppDeps` in `src/deps.ts`, and to
+the composition root in `src/index.ts`.
 
-The one thing still tied to a single feature is the `/close` route in `server.ts`. When a
-second feature needs delayed work, that becomes a task registry the same way commands did.
+Delayed work goes through the same registry. Every Cloud Tasks callback hits `POST /close`
+with `{ job, channelId, closeSecret }`, and `server.ts` hands the body to the job of that name.
+A body with no `job` — a task queued before jobs existed — goes to the rotation, so a deploy
+never strands an open sign-up.
 
 ---
 

@@ -18,11 +18,11 @@ no build step.
 
 | Command | What it does |
 |---|---|
-| `pnpm test` | The full suite, 70 tests |
+| `pnpm test` | The full suite, 101 tests |
 | `pnpm typecheck` | `tsc --noEmit` |
 | `pnpm dev` | Runs the server with `--watch`, reading `.env` |
 | `pnpm start` | Runs the server, reading the ambient environment (what the container does) |
-| `pnpm commands` | Registers the `/rotacion` slash command with Discord |
+| `pnpm commands` | Registers the slash commands (`/rotacion`, `/miticas`, `/gragussy`) with Discord |
 
 ## Tests
 
@@ -34,13 +34,16 @@ pnpm test
 |---|---|
 | `src/features/rotation/rotation.test.ts` | The draw: sizes, immunity, immune overflow, two-round turnover |
 | `src/features/rotation/pool.test.ts` | Joining, leaving, duplicate clicks, expiry |
+| `src/features/miticas/group.test.ts` | The role-aware draw, checked against a brute force: composition, maximal group, benched first, the only healer kept, missing roles |
+| `src/features/miticas/pool.test.ts` | Toggling roles, removing the last role, leaving |
+| `src/core/random.test.ts` | The shuffle keeps every element and does not mutate |
 | `src/discord/verify.test.ts` | Ed25519: valid, tampered body, replayed timestamp, foreign key, malformed headers |
 | `src/gcp/firestore.test.ts` | The typed-value codec round-trips, integers stay exact |
 | `src/gcp/tasks.test.ts` | The Cloud Tasks payload shape and schedule time |
 | `src/features/rotation/state.test.ts` | Optimistic concurrency, retry on contention, giving up |
-| `src/core/registry.test.ts` | Routing, duplicate commands, overlapping prefixes |
+| `src/core/registry.test.ts` | Routing, duplicate commands, overlapping prefixes, jobs |
 | `src/core/store.test.ts` | The generic store against a non-rotation document shape |
-| `src/server.test.ts` | The full flow end to end, plus routing a second feature |
+| `src/server.test.ts` | The full flow end to end for `/rotacion` and `/miticas`, job routing, routing a second feature |
 
 `src/server.test.ts` is the one that matters most. It drives the **real** server with **real
 Ed25519 signatures** from a generated keypair, an in-memory Firestore
@@ -97,6 +100,8 @@ at the cost of losing state on every restart.
 | Default or maximum duration | `src/config.ts` |
 | Command name or options | `src/features/rotation/command.ts`, then re-run `pnpm commands` |
 | Button labels or ids | `src/features/rotation/ids.ts` and `src/features/rotation/render.ts` |
+| `/miticas` group composition | `SLOTS` in `src/features/miticas/group.ts` |
+| `/miticas` draw, messages, options | `group.ts`, `render.ts`, `command.ts` in `src/features/miticas/` |
 
 ---
 
@@ -106,4 +111,5 @@ at the cost of losing state on every restart.
 
 See [Architecture → Adding a feature](architecture.md#adding-a-feature). The short version: a
 new folder under `src/features/`, exporting a `Feature`, plus one line in
-`src/features/index.ts`. Nothing in `server.ts`, `index.ts` or `deploy-commands.ts` changes.
+`src/features/index.ts`. Nothing in `server.ts` or `deploy-commands.ts` changes; a feature
+with its own store also adds it to `src/deps.ts` and `src/index.ts`.

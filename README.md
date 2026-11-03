@@ -27,11 +27,22 @@ out — remembering last round's leftovers so the same people don't always miss 
 Memory is per channel. The full rules, including what happens when more than five players are
 owed a seat, are in [the architecture guide](docs/architecture.md#data-model).
 
+`/miticas` is the same sign-up for Mythic+, where a group is exactly **1 tank, 1 healer and
+3 DPS**:
+
+- People toggle **Tank**, **Healer** and **DPS** — as many as they can play — instead of
+  Apuntarme; removing your last role takes you off the list
+- On close the bot builds one group, putting each player in one of the roles they picked
+- Anyone benched last round plays, even if that moves someone else to another role they
+  picked — unless it would leave the group without its only possible tank or healer
+- If nobody can fill a role, the bot posts the partial group and says what is missing
+- Its memory is separate from `/rotacion`'s, and both can be open in the same channel
+
 ## Architecture
 
 ```mermaid
 flowchart LR
-  user([Discord user]) -->|/rotacion · buttons| discord[Discord]
+  user([Discord user]) -->|/rotacion · /miticas · buttons| discord[Discord]
   discord -->|POST /interactions<br/>Ed25519 signed| run[Cloud Run · scales to zero]
   run -->|read / write state| store[(Firestore<br/>rotations/channelId)]
   run -->|post · edit messages| discord
@@ -51,10 +62,10 @@ deadline. The reasoning is in [Architecture](docs/architecture.md), along with [
 
 | Command | What it does |
 |---|---|
-| `pnpm test` | The full suite, 70 tests |
+| `pnpm test` | The full suite, 101 tests |
 | `pnpm typecheck` | `tsc --noEmit` |
 | `pnpm dev` | Runs the server with `--watch`, reading `.env` |
-| `pnpm commands` | Registers the `/rotacion` slash command with Discord |
+| `pnpm commands` | Registers the slash commands (`/rotacion`, `/miticas`, `/gragussy`) with Discord |
 | `./deploy/provision.sh` | Creates the GCP infrastructure, once |
 | `./deploy/deploy.sh` | Builds and deploys to Cloud Run |
 
@@ -86,7 +97,7 @@ Where each key comes from is in [Discord setup](docs/discord-setup.md#step-2--th
 | [Architecture](docs/architecture.md) | How it works and why: the interactions model, data model, security, project layout |
 | [Development](docs/development.md) | Running the tests, working locally, where to change what |
 | [Troubleshooting](docs/troubleshooting.md) | Symptoms, causes, and how to inspect a running deployment |
-| [PRDs](docs/prd/) | Decision records: both versions of the bot, and the extensible core |
+| [PRDs](docs/prd/) | Decision records: both versions of the bot, the extensible core, and `/miticas` |
 
 ## Quick start
 

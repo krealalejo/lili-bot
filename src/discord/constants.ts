@@ -41,6 +41,7 @@ export const CommandType = {
 export const CommandOptionType = {
   String: 3,
   Integer: 4,
+  Boolean: 5,
 } as const;
 
 export const InteractionContext = {

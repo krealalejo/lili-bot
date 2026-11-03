@@ -459,6 +459,36 @@ describe('/miticas', () => {
     ]);
   });
 
+  it('fills the sign-up with nine bots when opened with prueba', async () => {
+    const h = harness();
+    await h.post('/interactions', {
+      type: InteractionType.ApplicationCommand,
+      channel_id: CHANNEL,
+      member: { user: { id: 'host', username: 'host' } },
+      data: { name: 'miticas', options: [{ name: 'prueba', type: 5, value: true }] },
+    });
+    await h.click(MiticasId.Tank, 'me');
+
+    const participants = (await h.deps.miticasStore.read(CHANNEL)).pool?.participants ?? [];
+    expect(participants).toHaveLength(10);
+    expect(participants.at(-1)).toEqual({ id: 'me', roles: ['tank'] });
+
+    const message = JSON.stringify(h.created[0]?.payload);
+    expect(message).toContain('Apuntados (9)');
+    expect(message).toContain('Bot 9');
+    expect(message).not.toContain('<@demo-');
+
+    await h.click(MiticasId.Close, 'me');
+    expect(JSON.stringify(h.created.at(-1)?.payload)).not.toContain('<@demo-');
+  });
+
+  it('starts empty without prueba', async () => {
+    const h = harness();
+    await h.openMiticas();
+
+    expect((await h.deps.miticasStore.read(CHANNEL)).pool?.participants).toEqual([]);
+  });
+
   it('runs alongside an open /rotacion in the same channel', async () => {
     const h = harness();
     await h.openRotation();

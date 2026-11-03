@@ -10,6 +10,9 @@ export function displayNameOf(user: InteractionUser): string {
   return user.global_name ?? user.username ?? 'alguien';
 }
 
-export function optionValue(interaction: Interaction, name: string): string | number | undefined {
+export function optionValue(
+  interaction: Interaction,
+  name: string,
+): string | number | boolean | undefined {
   return interaction.data?.options?.find((option) => option.name === name)?.value;
 }

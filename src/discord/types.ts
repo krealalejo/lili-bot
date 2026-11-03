@@ -13,7 +13,7 @@ export type InteractionUser = {
 export type CommandOption = {
   name: string;
   type: number;
-  value?: string | number;
+  value?: string | number | boolean;
 };
 
 export type Interaction = {

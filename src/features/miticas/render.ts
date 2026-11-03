@@ -1,5 +1,6 @@
 import { ButtonStyle, ComponentType } from '../../discord/constants.ts';
 import type { MessagePayload } from '../../discord/rest.ts';
+import { demoName, isDemo } from './demo.ts';
 import type { GroupResult, Role, Signup } from './group.ts';
 import { CustomId } from './ids.ts';
 
@@ -10,7 +11,7 @@ const CLOSED_COLOR = 0x4f545c;
 const ROLE_EMOJI: Record<Role, string> = { tank: '🛡️', healer: '💚', dps: '⚔️' };
 const ROLE_LABEL: Record<Role, string> = { tank: 'Tank', healer: 'Healer', dps: 'DPS' };
 
-const mention = (id: string): string => `<@${id}>`;
+const mention = (id: string): string => (isDemo(id) ? demoName(id) : `<@${id}>`);
 
 const listMentions = (ids: readonly string[]): string =>
   ids.length === 0 ? '—' : ids.map(mention).join('\n');

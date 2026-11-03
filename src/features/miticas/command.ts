@@ -9,6 +9,7 @@ import { ephemeral } from '../../discord/responses.ts';
 import type { CommandDefinition, Interaction, InteractionResponse } from '../../discord/types.ts';
 import type { CommandModule } from '../../core/registry.ts';
 import { CLOSE_JOB } from './close.ts';
+import { DEMO_PLAYERS, demoPlayers } from './demo.ts';
 import type { MiticasDeps } from './deps.ts';
 import { isOpen } from './pool.ts';
 import { closedMessage, signupMessage } from './render.ts';
@@ -18,6 +19,7 @@ export const COMMAND_NAME = 'miticas';
 const OPTION = {
   duration: 'duracion',
   note: 'nota',
+  demo: 'prueba',
 } as const;
 
 const NOTE_MAX_LENGTH = 200;
@@ -42,6 +44,12 @@ export const definition: CommandDefinition = {
       description: 'Texto extra para la convocatoria',
       required: false,
       max_length: NOTE_MAX_LENGTH,
+    },
+    {
+      name: OPTION.demo,
+      type: CommandOptionType.Boolean,
+      description: `Añade ${DEMO_PLAYERS} jugadores de prueba con roles aleatorios`,
+      required: false,
     },
   ],
 };
@@ -69,13 +77,14 @@ export async function handleMiticas(
   const duration = clamp(typeof rawDuration === 'number' ? rawDuration : DEFAULT_DURATION_SECONDS);
   const rawNote = optionValue(interaction, OPTION.note);
   const note = typeof rawNote === 'string' && rawNote.length > 0 ? rawNote : null;
+  const participants = optionValue(interaction, OPTION.demo) === true ? demoPlayers() : [];
 
   const closesAt = deps.now() + duration * 1_000;
   const priority = new Set(existing.priority);
 
   const message = await deps.discord.createMessage(
     channelId,
-    signupMessage({ participants: [], note, closesAt, priority }),
+    signupMessage({ participants, note, closesAt, priority }),
   );
 
   const closeSecret = deps.randomSecret();
@@ -91,7 +100,7 @@ export async function handleMiticas(
         hostId: actor.id,
         note,
         closesAt,
-        participants: [],
+        participants,
         closeSecret,
       },
     };

@@ -5,6 +5,7 @@ import type { HttpRequest } from './core/http.ts';
 import { createRegistry } from './core/registry.ts';
 import { createDiscordRest } from './discord/rest.ts';
 import { features } from './features/index.ts';
+import { createMiticasStore } from './features/miticas/index.ts';
 import { createRotationStore } from './features/rotation/index.ts';
 import { createMetadataTokenSource } from './gcp/auth.ts';
 import { createFirestore } from './gcp/firestore.ts';
@@ -23,6 +24,7 @@ const app = createApp({
   // Clashes between features throw here, at boot, rather than in production.
   registry: createRegistry(features),
   store: createRotationStore(firestore),
+  miticasStore: createMiticasStore(firestore),
   tasks: createCloudTasks(
     {
       projectId: config.projectId,

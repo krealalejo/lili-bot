@@ -7,6 +7,8 @@ import type { AppDeps } from './deps.ts';
 import { features } from './features/index.ts';
 import { CustomId } from './features/rotation/ids.ts';
 import { createRotationStore } from './features/rotation/index.ts';
+import { CustomId as MiticasId } from './features/miticas/ids.ts';
+import { createMiticasStore } from './features/miticas/index.ts';
 import { createApp, type HttpRequest, type ServerDeps } from './server.ts';
 import type { MessagePayload } from './discord/rest.ts';
 import type { CloseTaskPayload } from './gcp/tasks.ts';
@@ -49,6 +51,7 @@ function harness(extraFeatures: Feature<AppDeps>[] = []) {
     publicKeyHex,
     registry: createRegistry([...features, ...extraFeatures]),
     store: createRotationStore(createMemoryFirestore()),
+    miticasStore: createMiticasStore(createMemoryFirestore()),
     now: () => clock,
     randomSecret: () => `secret-${(secretCounter += 1)}`,
     discord: {
@@ -103,6 +106,13 @@ function harness(extraFeatures: Feature<AppDeps>[] = []) {
         channel_id: CHANNEL,
         member: user('host'),
         data: { name: 'rotacion', options: [{ name: 'duracion', type: 4, value: duracion }] },
+      }),
+    openMiticas: (duracion = 120) =>
+      post('/interactions', {
+        type: InteractionType.ApplicationCommand,
+        channel_id: CHANNEL,
+        member: user('host'),
+        data: { name: 'miticas', options: [{ name: 'duracion', type: 4, value: duracion }] },
       }),
     click: (customId: string, userId: string) =>
       post('/interactions', {
@@ -416,6 +426,144 @@ describe('the scheduled close', () => {
 
     expect(response).toEqual({ status: 200, body: { skipped: true } });
     expect(h.created).toHaveLength(after);
+  });
+});
+
+describe('/miticas', () => {
+  const pick = async (h: ReturnType<typeof harness>, picks: [string, string[]][]) => {
+    for (const [userId, ids] of picks) {
+      for (const id of ids) {
+        await h.click(id, userId);
+      }
+    }
+  };
+
+  const fullGroup: [string, string[]][] = [
+    ['t', [MiticasId.Tank]],
+    ['h', [MiticasId.Healer]],
+    ['d1', [MiticasId.Dps]],
+    ['d2', [MiticasId.Dps]],
+    ['d3', [MiticasId.Dps]],
+  ];
+
+  it('opens a sign-up with role buttons and schedules its own close job', async () => {
+    const h = harness();
+    await h.openMiticas(300);
+
+    expect(JSON.stringify(h.created[0]?.payload)).toContain(MiticasId.Healer);
+    expect(h.scheduled).toEqual([
+      {
+        payload: { job: 'miticas', channelId: CHANNEL, closeSecret: 'secret-1' },
+        at: h.now() + 300_000,
+      },
+    ]);
+  });
+
+  it('runs alongside an open /rotacion in the same channel', async () => {
+    const h = harness();
+    await h.openRotation();
+    await h.openMiticas();
+    await h.click(CustomId.Join, 'a');
+    await h.click(MiticasId.Tank, 'a');
+
+    expect((await h.deps.store.read(CHANNEL)).pool?.participants).toEqual(['a']);
+    expect((await h.deps.miticasStore.read(CHANNEL)).pool?.participants).toEqual([
+      { id: 'a', roles: ['tank'] },
+    ]);
+  });
+
+  it('toggles roles and lists them on the sign-up message', async () => {
+    const h = harness();
+    await h.openMiticas();
+    await h.click(MiticasId.Tank, 'a');
+    const response = await h.click(MiticasId.Dps, 'a');
+    await h.click(MiticasId.Healer, 'b');
+    await h.click(MiticasId.Leave, 'b');
+
+    expect((response.body as { type: number }).type).toBe(CallbackType.UpdateMessage);
+    expect(JSON.stringify(response.body)).toContain('Apuntados (1)');
+    expect((await h.deps.miticasStore.read(CHANNEL)).pool?.participants).toEqual([
+      { id: 'a', roles: ['tank', 'dps'] },
+    ]);
+  });
+
+  it('rejects an unknown button in its namespace without touching the sign-ups', async () => {
+    const h = harness();
+    await h.openMiticas();
+    await h.click(MiticasId.Tank, 'a');
+
+    for (const unknownId of ['mit:somethingnew', 'mit:constructor', 'mit:toString']) {
+      expect(JSON.stringify((await h.click(unknownId, 'a')).body)).toContain('No reconozco ese botón');
+    }
+    expect((await h.deps.miticasStore.read(CHANNEL)).pool?.participants).toHaveLength(1);
+  });
+
+  it('closes with a full group and benches the excess with priority', async () => {
+    const h = harness();
+    await h.openMiticas();
+    await pick(h, [...fullGroup, ['x', [MiticasId.Tank]]]);
+    await h.click(MiticasId.Close, 't');
+
+    const doc = await h.deps.miticasStore.read(CHANNEL);
+    expect(doc.pool).toBeNull();
+    expect(doc.priority).toHaveLength(1);
+    expect(JSON.stringify(h.created.at(-1)?.payload)).toContain('Fuera esta vez (1)');
+  });
+
+  it('seats last round’s benched tank next time', async () => {
+    const h = harness();
+    await h.openMiticas();
+    await pick(h, [...fullGroup, ['x', [MiticasId.Tank]]]);
+    await h.click(MiticasId.Close, 't');
+    const [benched] = (await h.deps.miticasStore.read(CHANNEL)).priority;
+
+    await h.openMiticas();
+    await pick(h, [...fullGroup, ['x', [MiticasId.Tank]]]);
+    await h.click(MiticasId.Close, 't');
+
+    expect((await h.deps.miticasStore.read(CHANNEL)).priority).not.toContain(benched);
+    expect(JSON.stringify(h.created.at(-1)?.payload)).toContain(`<@${benched}>`);
+  });
+
+  it('announces the missing roles when the group cannot be completed', async () => {
+    const h = harness();
+    await h.openMiticas();
+    await pick(h, [
+      ['t', [MiticasId.Tank]],
+      ['d1', [MiticasId.Dps]],
+    ]);
+    await h.click(MiticasId.Close, 't');
+
+    const result = JSON.stringify(h.created.at(-1)?.payload);
+    expect(result).toContain('Grupo incompleto');
+    expect(result).toContain('Healer');
+    expect((await h.deps.miticasStore.read(CHANNEL)).priority).toEqual([]);
+  });
+
+  it('closes on the scheduled job and ignores a stale secret', async () => {
+    const h = harness();
+    await h.openMiticas(60);
+    await pick(h, fullGroup);
+    const task = h.scheduled[0];
+
+    const stale = await h.app({
+      method: 'POST',
+      path: '/close',
+      headers: {},
+      rawBody: JSON.stringify({ ...task?.payload, closeSecret: 'wrong' }),
+    });
+    expect(stale).toEqual({ status: 200, body: { skipped: true } });
+
+    const response = await h.app({
+      method: 'POST',
+      path: '/close',
+      headers: {},
+      rawBody: JSON.stringify(task?.payload),
+    });
+
+    expect(response).toEqual({ status: 200, body: { closed: true } });
+    expect(JSON.stringify(h.created.at(-1)?.payload)).toContain('Grupo completo');
+    expect((await h.deps.miticasStore.read(CHANNEL)).pool).toBeNull();
   });
 });
 

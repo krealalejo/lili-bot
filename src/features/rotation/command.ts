@@ -11,6 +11,7 @@ import type { CommandModule } from '../../core/registry.ts';
 import type { RotationDeps } from './deps.ts';
 import { CLOSE_JOB } from './close.ts';
 import { isOpen } from './pool.ts';
+import { activeImmune } from './state.ts';
 import { closedMessage, signupMessage } from './render.ts';
 
 export const COMMAND_NAME = 'rotacion';
@@ -84,7 +85,7 @@ export async function handleRotacion(
   const note = typeof rawNote === 'string' && rawNote.length > 0 ? rawNote : null;
 
   const closesAt = deps.now() + duration * 1_000;
-  const immune = new Set(existing.immune);
+  const immune = new Set(activeImmune(existing, deps.now()));
 
   const message = await deps.discord.createMessage(
     channelId,

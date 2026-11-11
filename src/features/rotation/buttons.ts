@@ -5,6 +5,7 @@ import { commitClose } from './close.ts';
 import type { RotationDeps } from './deps.ts';
 import { CustomId } from './ids.ts';
 import { isOpen, joinPool, leavePool } from './pool.ts';
+import { activeImmune } from './state.ts';
 import { closedMessage, resultMessage, signupMessage } from './render.ts';
 
 const ALREADY_CLOSED = 'Esa convocatoria ya está cerrada.';
@@ -68,7 +69,7 @@ export async function handleButton(
       participants: updated.pool.participants,
       note: updated.pool.note,
       closesAt: updated.pool.closesAt,
-      immune: new Set(updated.immune),
+      immune: new Set(activeImmune(updated, deps.now())),
     }),
   );
 }

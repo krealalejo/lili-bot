@@ -1,3 +1,4 @@
+import { BENCH_PRIORITY_TTL_MS } from '../../config.ts';
 import { createDocumentStore, type DocumentStore } from '../../core/store.ts';
 import type { Firestore } from '../../gcp/firestore.ts';
 
@@ -36,6 +37,16 @@ export function normalise(data: Partial<RotationDoc> | null): RotationDoc {
     lastRoundAt: typeof data.lastRoundAt === 'string' ? data.lastRoundAt : null,
     pool: data.pool ?? null,
   };
+}
+
+export function activeImmune(doc: RotationDoc, now: number): string[] {
+  if (doc.lastRoundAt === null) {
+    return [];
+  }
+
+  const last = Date.parse(doc.lastRoundAt);
+
+  return Number.isNaN(last) || now - last >= BENCH_PRIORITY_TTL_MS ? [] : doc.immune;
 }
 
 export type RotationStore = DocumentStore<RotationDoc>;

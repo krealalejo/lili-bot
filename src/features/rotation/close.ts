@@ -3,7 +3,7 @@ import type { HttpResponse } from '../../core/http.ts';
 import type { RotationDeps } from './deps.ts';
 import { closedMessage, resultMessage } from './render.ts';
 import { resolveRound, type RoundResult } from './rotation.ts';
-import type { Pool } from './state.ts';
+import { activeImmune, type Pool } from './state.ts';
 
 export type CloseOutcome =
   | { closed: false }
@@ -38,14 +38,15 @@ export async function commitClose(channelId: string, deps: RotationDeps): Promis
       return null;
     }
 
-    const immune = new Set(doc.immune);
+    const current = activeImmune(doc, deps.now());
+    const immune = new Set(current);
     const result = resolveRound(doc.pool.participants, immune);
     captured.value = { pool: doc.pool, immune, result };
 
     return {
       // An empty convocatoria must not wipe the immunity list: nobody played, so nobody
       // has paid their turn off.
-      immune: doc.pool.participants.length > 0 ? result.benched : doc.immune,
+      immune: doc.pool.participants.length > 0 ? result.benched : current,
       lastRoundAt: new Date(deps.now()).toISOString(),
       pool: null,
     };

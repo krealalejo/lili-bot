@@ -1,6 +1,7 @@
 export const DEFAULT_DURATION_SECONDS = 120;
 export const MIN_DURATION_SECONDS = 10;
 export const MAX_DURATION_SECONDS = 3600;
+export const BENCH_PRIORITY_TTL_MS = 4 * 60 * 60 * 1_000;
 
 function required(name: string): string {
   const value = process.env[name];

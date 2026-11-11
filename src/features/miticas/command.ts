@@ -12,6 +12,7 @@ import { CLOSE_JOB } from './close.ts';
 import { DEMO_PLAYERS, demoPlayers } from './demo.ts';
 import type { MiticasDeps } from './deps.ts';
 import { isOpen } from './pool.ts';
+import { activePriority } from './state.ts';
 import { closedMessage, signupMessage } from './render.ts';
 
 export const COMMAND_NAME = 'miticas';
@@ -80,7 +81,7 @@ export async function handleMiticas(
   const participants = optionValue(interaction, OPTION.demo) === true ? demoPlayers() : [];
 
   const closesAt = deps.now() + duration * 1_000;
-  const priority = new Set(existing.priority);
+  const priority = new Set(activePriority(existing, deps.now()));
 
   const message = await deps.discord.createMessage(
     channelId,

@@ -3,7 +3,7 @@ import type { HttpResponse } from '../../core/http.ts';
 import type { MiticasDeps } from './deps.ts';
 import { resolveGroup, type GroupResult, type Signup } from './group.ts';
 import { closedMessage, resultMessage } from './render.ts';
-import type { Pool } from './state.ts';
+import { activePriority, type Pool } from './state.ts';
 
 export const CLOSE_JOB = 'miticas';
 
@@ -27,12 +27,13 @@ export async function commitClose(channelId: string, deps: MiticasDeps): Promise
       return null;
     }
 
-    const priority = new Set(doc.priority);
+    const current = activePriority(doc, deps.now());
+    const priority = new Set(current);
     const result = resolveGroup(doc.pool.participants, priority);
     captured.value = { pool: doc.pool, priority, result };
 
     return {
-      priority: doc.pool.participants.length > 0 ? result.benched : doc.priority,
+      priority: doc.pool.participants.length > 0 ? result.benched : current,
       lastRoundAt: new Date(deps.now()).toISOString(),
       pool: null,
     };

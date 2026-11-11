@@ -5,6 +5,7 @@ import { commitClose } from './close.ts';
 import type { MiticasDeps } from './deps.ts';
 import { CustomId, ROLE_BY_CUSTOM_ID } from './ids.ts';
 import { isOpen, leavePool, toggleRole } from './pool.ts';
+import { activePriority } from './state.ts';
 import { closedMessage, resultMessage, signupMessage } from './render.ts';
 
 const ALREADY_CLOSED = 'Esas míticas ya están cerradas.';
@@ -66,7 +67,7 @@ export async function handleButton(
       participants: updated.pool.participants,
       note: updated.pool.note,
       closesAt: updated.pool.closesAt,
-      priority: new Set(updated.priority),
+      priority: new Set(activePriority(updated, deps.now())),
     }),
   );
 }

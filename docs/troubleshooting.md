@@ -15,6 +15,7 @@
 | A button says the sign-up is closed | It passed its `closesAt`, or somebody closed it first |
 | The GitHub `deploy` job fails | Workload Identity Federation is not configured yet. `verify` still passing means the code is fine — see [Deployment](deployment.md#automatic-deploys-from-github) |
 | Everyone got benched again | Check `immune` in the document: an empty sign-up between rounds does not clear it, but a round with 5 or fewer players does |
+| Last round's benched players were not prioritised | More than 4 hours passed since `lastRoundAt`, so the memory expired |
 
 ## Behaviour that looks odd but is intended
 
@@ -24,6 +25,8 @@
 - **An empty sign-up does not clear the rotation memory.** Nobody played, so nobody paid their
   turn off.
 - **A round with 5 or fewer players clears it.** Nobody sat out, so nobody is owed a seat.
+- **The memory expires 4 hours after the last round.** The next sign-up starts from a clean
+  slate, in `/rotacion` and `/miticas` alike.
 - **Immune players can still be seen in the nominee list** if more than five of them signed up:
   the five seats are drawn among the immune, and whoever misses out keeps immunity for the
   round after.

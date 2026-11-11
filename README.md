@@ -23,6 +23,7 @@ out — remembering last round's leftovers so the same people don't always miss 
 - **More than 5** → the excess are drawn at random, but anyone benched last round has a
   **guaranteed seat** and is not entered into the draw
 - This round's nominees are next round's immune players — that handover is the whole rotation
+- That memory expires **4 hours** after the last round: a new session starts with nobody immune
 
 Memory is per channel. The full rules, including what happens when more than five players are
 owed a seat, are in [the architecture guide](docs/architecture.md#data-model).

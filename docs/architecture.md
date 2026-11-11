@@ -160,6 +160,11 @@ nobody sat out, nobody is owed a seat.
 
 An **empty sign-up does not clear the memory**: nobody played, so nobody paid their turn off.
 
+The memory **expires 4 hours after `lastRoundAt`** (`BENCH_PRIORITY_TTL_MS` in `src/config.ts`).
+An expired list is treated as empty wherever it is read — the sign-up message, the draw and the
+list written back by an empty close — so a new session starts with nobody owed a seat. The
+same rule applies to `/miticas` `priority`.
+
 ### `/miticas`
 
 The same shape in its own collection, `miticas/{channelId}`, so it never touches the rotation
